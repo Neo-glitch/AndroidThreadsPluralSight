@@ -12,7 +12,7 @@ import android.widget.Filterable;
 import android.widget.TextView;
 
 
-import com.neo.androidhthreadspluralsight.R;
+import com.neo.androidthreadspluralsight.R;
 import com.neo.androidthreadspluralsight.models.Word;
 import com.neo.androidthreadspluralsight.util.Utility;
 

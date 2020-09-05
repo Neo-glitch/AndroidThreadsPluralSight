@@ -20,7 +20,7 @@ import android.view.MenuItem;
 import android.view.View;
 
 
-import com.neo.androidhthreadspluralsight.R;
+import com.neo.androidthreadspluralsight.R;
 import com.neo.androidthreadspluralsight.adapters.WordsRecyclerAdapter;
 import com.neo.androidthreadspluralsight.models.Word;
 

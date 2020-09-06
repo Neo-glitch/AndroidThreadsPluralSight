@@ -14,17 +14,20 @@ import com.neo.androidthreadspluralsight.util.Constants;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
+
+
+
 /**
- * runnable for retrieving words from the db
+ * custom runnable for retrieving words from the db using the handlerThread
  */
 public class RetrieveWordsRunnable implements Runnable{
     private static final String TAG = "RetrieveWordsRunnable";
 
     // var
 //    private Handler mMainThreadHandler;             // passes msg to main thread when job complete
-    private WeakReference<Handler> mMainThreadHandler;    // done this way to avoid mem leaks
+    private WeakReference<Handler> mMainThreadHandler;              // done this way to avoid mem leaks
     private AppDatabase mDb;
-    private String mQuery;                          // query String, for words to be searched for
+    private String mQuery;                                          // query String, for words to be searched for
 
     public RetrieveWordsRunnable(Context context, Handler mainThreadHandler, String query) {
         mMainThreadHandler = new WeakReference<>(mainThreadHandler);

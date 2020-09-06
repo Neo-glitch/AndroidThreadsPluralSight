@@ -8,6 +8,9 @@ import android.content.Context;
 import com.neo.androidthreadspluralsight.models.Word;
 
 
+/**
+ * App Database
+ */
 @Database(entities = {Word.class}, version = 1, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
 

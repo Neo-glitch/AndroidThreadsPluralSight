@@ -28,6 +28,7 @@ public class RetrieveWordsAsyncTask extends AsyncTask<String, Void, ArrayList<Wo
 
     @Override
     protected void onPreExecute() {
+        // to prepare anything in code before starting the AsyncTask
         super.onPreExecute();
     }
 

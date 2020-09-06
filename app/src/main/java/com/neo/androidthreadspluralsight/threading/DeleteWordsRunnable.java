@@ -14,10 +14,11 @@ import com.neo.androidthreadspluralsight.util.Constants;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
+
 /**
- * runnable for deleting words from the db
+ * custom runnable for deleting words from the db for interacting with handlerThread
  */
-public class DeleteWordsRunnable implements Runnable{
+public class DeleteWordsRunnable implements Runnable {
     private static final String TAG = "DeleteWordsRunnable";
 
     // var

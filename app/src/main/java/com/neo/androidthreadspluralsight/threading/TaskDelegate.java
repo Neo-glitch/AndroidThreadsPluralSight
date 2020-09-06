@@ -16,4 +16,6 @@ public interface TaskDelegate {
      * @return
      */
     void onWordsRetrieved(ArrayList<Word> words);
+
+    void onRowsRetrieved(int numRows);
 }

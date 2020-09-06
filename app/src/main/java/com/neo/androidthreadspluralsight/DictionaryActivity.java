@@ -26,16 +26,22 @@ import com.neo.androidthreadspluralsight.models.Word;
 
 import com.neo.androidthreadspluralsight.threading.DeleteWordsRunnable;
 import com.neo.androidthreadspluralsight.threading.MyThread;
+import com.neo.androidthreadspluralsight.threading.RetrieveRowsAsyncTask;
 import com.neo.androidthreadspluralsight.threading.RetrieveWordsRunnable;
 
 import com.neo.androidthreadspluralsight.threading.DeleteWordsAsyncTask;
 import com.neo.androidthreadspluralsight.threading.MyThread;
 import com.neo.androidthreadspluralsight.threading.RetrieveWordsAsyncTask;
 import com.neo.androidthreadspluralsight.threading.TaskDelegate;
+import com.neo.androidthreadspluralsight.threading.ThreadPoolRunnable;
 import com.neo.androidthreadspluralsight.util.Constants;
 import com.neo.androidthreadspluralsight.util.VerticalSpacingItemDecorator;
 
 import java.util.ArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 
 /**
@@ -45,7 +51,7 @@ public class DictionaryActivity extends AppCompatActivity implements
         WordsRecyclerAdapter.OnWordListener,
         View.OnClickListener,
         SwipeRefreshLayout.OnRefreshListener,
-        Handler.Callback,
+        Handler.Callback,                                          // interface to handle message sent to this activity's thread handler
         TaskDelegate
 {
 
@@ -61,11 +67,17 @@ public class DictionaryActivity extends AppCompatActivity implements
     private FloatingActionButton mFab;
     private String mSearchQuery = "";
 
-    private HandlerThread mHandlerThread;               // handlerThread obj
-    private Handler mMainThreadHandler;                 // handler for receiving msg from the runnable
+    private HandlerThread mHandlerThread;               // handlerThread obj the exec runnable obj on another thread
+    private Handler mMainThreadHandler;                 // handler for receiving msg from the runnable or any other background handler
     private MyThread mMyThread;
     private RetrieveWordsAsyncTask mRetrieveWordsAsyncTask;
     private DeleteWordsAsyncTask mDeleteWordsAsyncTask;
+
+    // for implementing threadPool
+    private ExecutorService mExecutorService;
+    private int mNumRows = 0;                                   // to store numRows in database
+    private RetrieveRowsAsyncTask mRetrieveRowsAsyncTask;
+    private ThreadPoolExecutor mThreadPoolExecutor;             // alt to using executor service to implement threadPool and provides more options
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,6 +95,16 @@ public class DictionaryActivity extends AppCompatActivity implements
         mMainThreadHandler = new Handler(this);
 
         setupRecyclerView();
+
+        initExecutorThreadPool();
+    }
+
+    private void initExecutorThreadPool(){
+        // gets num of cores on device
+        int numCores = Runtime.getRuntime().availableProcessors();
+        Log.d(TAG, "initExecutorThreadPool: cores: " + numCores);
+
+        mExecutorService = Executors.newFixedThreadPool(numCores);
     }
 
 
@@ -112,7 +134,7 @@ public class DictionaryActivity extends AppCompatActivity implements
     protected void onStop() {
         Log.d(TAG, "onStop: called.");
         super.onStop();
-        mHandlerThread.quitSafely();        // stops the handlerThread, to avoid MemLeaks
+        mHandlerThread.quitSafely();                                        // stops the handlerThread, to avoid MemLeaks
 
         if(mRetrieveWordsAsyncTask != null){
             mRetrieveWordsAsyncTask.cancel(true);        // forceClose the asyncTask if activity is stopped(user changing activity)
@@ -120,6 +142,9 @@ public class DictionaryActivity extends AppCompatActivity implements
         if(mDeleteWordsAsyncTask != null){
             mDeleteWordsAsyncTask.cancel(true);
         }
+
+        // stop service immediately even if the tasks assigned to it not completed
+        mExecutorService.shutdownNow();
     }
 
 
@@ -133,9 +158,9 @@ public class DictionaryActivity extends AppCompatActivity implements
 
     private void retrieveWords(String title) {
         Log.d(TAG, "retrieveWords: called.");
-
+        // n.b: this code works separately from AsyncTask code
         Handler backgroundHandler = new Handler(mHandlerThread.getLooper());                        // init a handler without init a looper and asso with handlerThread obj
-        backgroundHandler.post(new RetrieveWordsRunnable(this, mMainThreadHandler, title));
+        backgroundHandler.post(new RetrieveWordsRunnable(this, mMainThreadHandler, title)); // runs the runnable on the handlerThread passed
 
 
         if(mRetrieveWordsAsyncTask != null){                // logic for avoid stacking of asyncTasks
@@ -143,6 +168,14 @@ public class DictionaryActivity extends AppCompatActivity implements
         }
         mRetrieveWordsAsyncTask = new RetrieveWordsAsyncTask(this, this);
         mRetrieveWordsAsyncTask.execute(title);
+
+        // for implementing threadPool
+        if(mRetrieveRowsAsyncTask != null){
+            mRetrieveRowsAsyncTask.cancel(true);
+        }
+        mRetrieveRowsAsyncTask = new RetrieveRowsAsyncTask(this, this);
+        mRetrieveRowsAsyncTask.execute();
+
     }
 
 
@@ -152,10 +185,8 @@ public class DictionaryActivity extends AppCompatActivity implements
         mWordRecyclerAdapter.getFilteredWords().remove(word);
         mWordRecyclerAdapter.notifyDataSetChanged();
 
-
         Handler backgroundHandler = new Handler(mHandlerThread.getLooper());                        // init a handler without init a looper and asso with handlerThread obj
-        backgroundHandler.post(new DeleteWordsRunnable(this, mMainThreadHandler, word));
-
+        backgroundHandler.post(new DeleteWordsRunnable(this, mMainThreadHandler, word));    // runs the runnable on the handlerThread passed
 
 
         if(mDeleteWordsAsyncTask != null){
@@ -320,6 +351,16 @@ public class DictionaryActivity extends AppCompatActivity implements
                 break;
             }
 
+            case Constants.MSG_THREAD_POOL_TASK_COMPLETE:{
+                ArrayList<Word> words = msg.getData().getParcelableArrayList("word_data_from_thread_pool");
+                mWords.addAll(words);
+                mWordRecyclerAdapter.getFilter().filter(mSearchQuery);
+
+                Log.d(TAG, "handleMessage: recieved some words: " + words.size());
+                Log.d(TAG, "handleMessage: total words: " + mWords.size());
+                break;
+            }
+
         }
         return true;
     }
@@ -330,6 +371,44 @@ public class DictionaryActivity extends AppCompatActivity implements
         mWords.addAll(words);     // adds newly retrieved words
         mWordRecyclerAdapter.notifyDataSetChanged();
     }
+
+    @Override
+    public void onRowsRetrieved(int numRows) {
+        Log.d(TAG, "onRowsRetrieved: num rows: " + numRows);
+        mNumRows = numRows;
+        executeThreadPool();
+    }
+
+
+    /**
+     * fun makes sure each thread work is evenly shared
+     */
+    private void executeThreadPool(){
+        clearWords();
+
+        int numTasks = Runtime.getRuntime().availableProcessors();
+
+        // checks if NumRows/numTasks has a remainder, if yes round up else round down
+        int chunkSize = (mNumRows % numTasks) != 0 ?
+                (int) Math.ceil((double)mNumRows / (double)numTasks) : (int) Math.floor((double)mNumRows / (double)numTasks);
+        Log.d(TAG, "executeThreadPool: chunksize: " + chunkSize);
+
+        for(int i = 0; i < numTasks; i++){
+            // iters through each task or core num and run our custom runnable
+            // each time .submit  is called a runnable is ran on another thread if first one is still in use unless all the threads are in use and it waits
+            Log.d(TAG, "executeThreadPool: starting query at: row#" + (chunkSize * i));
+
+
+            ThreadPoolRunnable runnable = new ThreadPoolRunnable(
+                    this,
+                    mMainThreadHandler,
+                    chunkSize * i,
+                    chunkSize
+            );
+            mExecutorService.submit(runnable);
+        }
+    }
+
 }
 
 

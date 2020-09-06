@@ -18,12 +18,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 
+/**
+ * class for implementing thread/looper/handler
+ */
 public class MyThread extends Thread {
 
     private static final String TAG = "MyThread";
 
-    private MyThreadHandler mMyThreadHandler = null;                    // Handler for receiving msg from mainThread
-    private Handler mMainThreadHandler = null;                          // handler for sending message back to mainThread
+    private MyThreadHandler mMyThreadHandler = null;                            // Handler for receiving msg from mainThread
+    private Handler mMainThreadHandler = null;                                  // handler for sending message back to mainThread
     private boolean isRunning = false;                                          // true when thread is running
     private AppDatabase mDb;
 
@@ -103,6 +106,8 @@ public class MyThread extends Thread {
 
     }
 
+
+    // custom handler class to receive message from mainThread unto this thread
     class MyThreadHandler extends Handler {
 
         public MyThreadHandler(Looper looper) {

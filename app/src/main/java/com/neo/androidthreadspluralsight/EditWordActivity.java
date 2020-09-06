@@ -198,6 +198,9 @@ public class EditWordActivity extends AppCompatActivity implements
     }
 
 
+    /**
+     * closes editMode and makes a save to the Apps database
+     */
     private void disableEditMode(){
         Log.d(TAG, "disableEditMode: called.");
         hideSoftkeyboard();
